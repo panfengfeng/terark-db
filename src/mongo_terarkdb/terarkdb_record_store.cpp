@@ -141,7 +141,11 @@ public:
     boost::optional<Record> seekExact(const RecordId& id) final {
 	struct timespec start, end;
 	clock_gettime(CLOCK_MONOTONIC, &start);
+<<<<<<< HEAD
 	DbTable& tab = *_rs.m_table->m_tab;
+=======
+        _skipNextAdvance = false;
+>>>>>>> add descriptions
         llong recIdx = id.repr() - 1;
 		auto& ttd = *m_ttd;
 		ttd.m_dbCtx->getValue(recIdx, &ttd.m_buf);
@@ -389,8 +393,8 @@ StatusWith<RecordId> TerarkDbRecordStore::insertRecord(OperationContext* txn,
 													 const char* data,
 													 int len,
 													 bool enforceQuota) {
-    log() << "mongo_terarkdb@panda insertRecord data";
-    DbTable* tab = m_table->m_tab.get();
+   log() << "mongo_terarkdb@panda insertRecord data";
+	DbTable* tab = m_table->m_tab.get();
     auto& td = m_table->getMyThreadData();
     BSONObj bson(data);
 	invariant(bson.objsize() == len);
