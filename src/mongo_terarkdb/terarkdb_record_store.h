@@ -176,6 +176,7 @@ public:
 private:
     class Cursor;
     const std::string _ident;
+
     bool _shuttingDown;
 };
 

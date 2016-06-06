@@ -130,6 +130,7 @@ TerarkDbIndex::TerarkDbIndex(ThreadSafeTable* table, OperationContext* ctx, cons
     , _collectionNamespace(desc->parentNS())
     , _indexName(desc->indexName())
 {
+	log() << "mongo_terarkdb@panda index TerarkDbIndex"; 
 	LOG(2) << "TerarkDbIndex::TerarkDbIndex(): keyPattern=" << desc->keyPattern().toString();
 	std::string indexColumnNames;
 	BSONForEach(elem, desc->keyPattern()) {
@@ -151,22 +152,24 @@ TerarkDbIndex::TerarkDbIndex(ThreadSafeTable* table, OperationContext* ctx, cons
 	invariant(desc->unique() == getIndexSchema()->m_isUnique);
 }
 
-TerarkDbIndex::~TerarkDbIndex() {
-	CompositeTable* tab = m_table->m_tab.get();
-    LOG(1) << BOOST_CURRENT_FUNCTION << ": dir: " << tab->getDir().string();
-}
-
 Status TerarkDbIndex::insert(OperationContext* txn,
                            const BSONObj& key,
                            const RecordId& id,
                            bool dupsAllowed)
 {
+	struct timespec start, end;
+        clock_gettime(CLOCK_MONOTONIC, &start);
 	auto& td = m_table->getMyThreadData();
 	auto indexSchema = getIndexSchema();
 	encodeIndexKey(*indexSchema, key, &td.m_buf);
 	llong recIdx = id.repr() - 1;
 	CompositeTable* tab = m_table->m_tab.get();
-	if (tab->indexInsert(m_indexId, td.m_buf, recIdx, &*td.m_dbCtx)) {
+	bool result = tab->indexInsert(m_indexId, td.m_buf, recIdx, &*td.m_dbCtx);
+	clock_gettime(CLOCK_MONOTONIC, &end);
+        long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	log() << "mongo_terarkdb@panda index insert timeuse(ns) " << timeuse;
+ 
+	if (result) {
 		return Status::OK();
 	} else {
 		return Status(ErrorCodes::DuplicateKey, "dup key in TerarkDbIndex::insert");
@@ -178,6 +181,7 @@ void TerarkDbIndex::unindex(OperationContext* txn,
                           const RecordId& id,
                           bool dupsAllowed)
 {
+    log() << "mongo_terarkdb@panda index unindex"; 
     invariant(id.isNormal());
     dassert(!hasFieldNames(key));
 	auto& td = m_table->getMyThreadData();
@@ -192,6 +196,7 @@ void TerarkDbIndex::fullValidate(OperationContext* txn,
 							   bool full,
 							   long long* numKeysOut,
 							   ValidateResults* output) const {
+        log() << "mongo_terarkdb@panda index fullValidate"; 
 	LOG(2) << BOOST_CURRENT_FUNCTION << ": is in TODO list, Not supported now";
 }
 
@@ -205,6 +210,7 @@ bool TerarkDbIndex::appendCustomStats(OperationContext* txn,
 }
 
 Status TerarkDbIndex::dupKeyCheck(OperationContext* txn, const BSONObj& key, const RecordId& id) {
+    log() << "mongo_terarkdb@panda index dupKeyCheck"; 
     invariant(!hasFieldNames(key));
     invariant(unique());
 	auto& td = m_table->getMyThreadData();
@@ -245,6 +251,7 @@ Status TerarkDbIndex::initAsEmpty(OperationContext* txn) {
 bool
 TerarkDbIndex::insertIndexKey(const BSONObj& newKey, const RecordId& id,
 							TableThreadData* td) {
+	log() << "mongo_terarkdb@panda index insertIndexKey"; 
 	encodeIndexKey(*getIndexSchema(), newKey, &td->m_buf);
 	CompositeTable* tab = m_table->m_tab.get();
 	return tab->indexInsert(m_indexId, td->m_buf, id.repr()-1, &*td->m_dbCtx);
@@ -258,24 +265,30 @@ namespace {
 class TerarkDbIndexCursorBase : public SortedDataInterface::Cursor {
 public:
     TerarkDbIndexCursorBase(const TerarkDbIndex& idx, OperationContext* txn, bool forward)
-        : _txn(txn), _idx(idx), _forward(forward), _endPositionInclude(false) {
-		_cursor = idx.m_table->allocIndexIter(idx.m_indexId, forward);
+        : _txn(txn), _idx(idx), _forward(forward) {
+		struct timespec start, end;
+   		clock_gettime(CLOCK_MONOTONIC, &start);
+		CompositeTable* tab = idx.m_table->m_tab.get();
+		if (forward)
+			_cursor = tab->createIndexIterForward(idx.m_indexId);
+		else
+			_cursor = tab->createIndexIterBackward(idx.m_indexId);
+    		clock_gettime(CLOCK_MONOTONIC, &end);
+    		long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	        log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase timeuse(ns) " << timeuse;
     }
-	~TerarkDbIndexCursorBase() {
-		_idx.m_table->releaseIndexIter(_idx.m_indexId, _forward, _cursor);
-	}
     boost::optional<IndexKeyEntry> next(RequestedInfo parts) override {
+	log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase next";
         if (_eof) { // Advance on a cursor at the end is a no-op
 	        TRACE_CURSOR << "next(): _eof=true";
             return {};
 		}
- 		auto cur = _cursor.get();
         if (!_lastMoveWasRestore) {
 			llong recIdx = -1;
-			if (_cursor->increment(&recIdx)) {
+			if (_cursor->increment(&recIdx, &m_curKey)) {
 				_cursorAtEof = false;
 				_id = RecordId(recIdx + 1);
-		        TRACE_CURSOR << "next(): increment() ret true, curKey=" << _idx.getIndexSchema()->toJsonStr(cur->m_curKey);
+		        TRACE_CURSOR << "next(): increment() ret true, curKey=" << _idx.getIndexSchema()->toJsonStr(m_curKey);
 		        return curr(parts);
 			}
 			else {
@@ -285,7 +298,7 @@ public:
 			}
 		}
 		else {
-			TRACE_CURSOR << "next(): curKey=" << _idx.getIndexSchema()->toJsonStr(cur->m_curKey);
+			TRACE_CURSOR << "next(): curKey=" << _idx.getIndexSchema()->toJsonStr(m_curKey);
 			_lastMoveWasRestore = false;
 	        return curr(parts);
 		}
@@ -293,11 +306,10 @@ public:
 
     void setEndPosition(const BSONObj& key, bool inclusive) override {
         TRACE_CURSOR << "setEndPosition: inclusive = " << inclusive << ", bsonKey = " << key;
-		auto cur = _cursor.get();
         if (key.isEmpty()) {
 		EmptyKey:
             // This means scan to end of index.
-            cur->m_endPositionKey.erase_all();
+            _endPositionKey.erase_all();
 			_endPositionInclude = false;
         }
 		else {
@@ -306,16 +318,18 @@ public:
 		        TRACE_CURSOR << "setEndPosition: first field is an empty object";
 				goto EmptyKey;
 			}
-			encodeIndexKey(*_idx.getIndexSchema(), key, &cur->m_endPositionKey);
+			encodeIndexKey(*_idx.getIndexSchema(), key, &_endPositionKey);
 			_endPositionInclude = inclusive;
 	        TRACE_CURSOR << "setEndPosition: _endPositionKey="
-						 << _idx.getIndexSchema()->toJsonStr(cur->m_endPositionKey);
+						 << _idx.getIndexSchema()->toJsonStr(_endPositionKey);
 		}
     }
 
     boost::optional<IndexKeyEntry> seek(const BSONObj& key,
                                         bool inclusive,
                                         RequestedInfo parts) override {
+	struct timespec start, end;
+   	clock_gettime(CLOCK_MONOTONIC, &start);
 //        const BSONObj finalKey = stripFieldNames(key);
 //        const auto discriminator =
 //           _forward == inclusive ? KeyString::kExclusiveBefore : KeyString::kExclusiveAfter;
@@ -326,6 +340,9 @@ public:
         TRACE_CURSOR << "seek3(): key=" << key.jsonString() << ", inclusive=" << inclusive;
         seekWTCursor(key, inclusive);
         updatePosition();
+    	clock_gettime(CLOCK_MONOTONIC, &end);
+    	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seek key timeuse(ns) " << timeuse;
 		if (!_cursorAtEof)
 			return curr(parts);
 		else
@@ -334,6 +351,7 @@ public:
 
     boost::optional<IndexKeyEntry> seek(const IndexSeekPoint& seekPoint,
                                         RequestedInfo parts) override {
+	log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seek seekPoint";
         // TODO: don't go to a bson obj then to a KeyString, go straight
         // makeQueryObject handles the discriminator in the real exclusive cases.
         BSONObj key = IndexEntryComparison::makeQueryObject(seekPoint, _forward);
@@ -374,8 +392,7 @@ public:
             // Standard (non-unique) indices *do* include the record id in their KeyStrings. This
             // means that restoring to the same key with a new record id will return false, and we
             // will *not* skip the key with the new record id.
-			auto cur = _cursor.get();
-			cur->m_qryKey.assign(cur->m_curKey);
+			m_qryKey.assign(m_curKey);
             _lastMoveWasRestore = !seekWTCursor(true);
             TRACE_CURSOR << "restore _lastMoveWasRestore:" << _lastMoveWasRestore;
         }
@@ -393,6 +410,8 @@ public:
 
 protected:
     boost::optional<IndexKeyEntry> curr(RequestedInfo parts) {
+	struct timespec start, end;
+	clock_gettime(CLOCK_MONOTONIC, &start);
         if (_eof)
             return {};
         if (atOrPastEndPointAfterSeeking())
@@ -400,19 +419,21 @@ protected:
         dassert(!_id.isNull());
         BSONObj bson;
         if (TRACING_ENABLED || (parts & kWantKey)) {
-            bson = BSONObj(decodeIndexKey(*_idx.getIndexSchema(), _cursor->m_curKey));
+            bson = BSONObj(decodeIndexKey(*_idx.getIndexSchema(), m_curKey));
             TRACE_CURSOR << "curr() returning " << bson << ' ' << _id;
         }
+	clock_gettime(CLOCK_MONOTONIC, &end);
+	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase curr timeuse(ns) " << timeuse;
         return {{std::move(bson), _id}};
     }
 
     bool atOrPastEndPointAfterSeeking() const {
         if (_eof)
             return true;
-		auto cur = _cursor.get();
-        if (cur->m_endPositionKey.empty())
+        if (_endPositionKey.empty())
             return false;
-        const int cmp = _idx.getIndexSchema()->compareData(cur->m_curKey, cur->m_endPositionKey);
+        const int cmp = _idx.getIndexSchema()->compareData(m_curKey, _endPositionKey);
 		bool ret;
         if (_forward) {
             ret = cmp > 0 || (cmp == 0 && !_endPositionInclude);
@@ -420,15 +441,15 @@ protected:
             ret = cmp < 0 || (cmp == 0 && !_endPositionInclude);
         }
 		TRACE_CURSOR << "atOrPastEndPointAfterSeeking(): returning " << ret
-			<< "\\\n\tcurKey=" << _idx.getIndexSchema()->toJsonStr(cur->m_curKey)
-			<< ", endKey=" << _idx.getIndexSchema()->toJsonStr(cur->m_endPositionKey)
+			<< "\\\n\tcurKey=" << _idx.getIndexSchema()->toJsonStr(m_curKey)
+			<< ", endKey=" << _idx.getIndexSchema()->toJsonStr(_endPositionKey)
 			<< ", cmp=" << cmp << ", endInclude=" << _endPositionInclude;
 		return ret;
     }
 
     void advanceWTCursor() {
 		llong recIdx = -1;
-		if (_cursor->increment(&recIdx)) {
+		if (_cursor->increment(&recIdx, &m_curKey)) {
 	        _cursorAtEof = false;
 			_id = RecordId(recIdx + 1);
 			TRACE_CURSOR << "advanceWTCursor(): increment() = true, _id = " << _id;
@@ -441,7 +462,7 @@ protected:
     // Seeks to query. Returns true on exact match.
     bool seekWTCursor(const BSONObj& bsonKey, bool inclusive) {
 		auto indexSchema = _idx.getIndexSchema();
-		encodeIndexKey(*indexSchema, bsonKey, &_cursor->m_qryKey);
+		encodeIndexKey(*indexSchema, bsonKey, &m_qryKey);
 		return seekWTCursor(inclusive);
 	}
     bool seekWTCursor(bool inclusive) {
@@ -449,20 +470,19 @@ protected:
 		_eof = false;
         int ret;
 		const char* funcName;
-		auto cur = _cursor.get();
 	//	m_curKey.erase_all();
 		if (inclusive) {
 			funcName = "seekLowerBound";
-			ret = cur->seekLowerBound(&recIdx);
+			ret = _cursor->seekLowerBound(m_qryKey, &recIdx, &m_curKey);
 		} else {
 			funcName = "seekUpperBound";
-			ret = cur->seekUpperBound(&recIdx);
+			ret = _cursor->seekUpperBound(m_qryKey, &recIdx, &m_curKey);
 		}
-		bool isEqual = fstring(cur->m_qryKey) == cur->m_curKey;
+		bool isEqual = fstring(m_qryKey) == m_curKey;
 		TRACE_CURSOR << "seekWTCursor(): " << funcName << " ret: " << ret
 			<< ", _id = " << (recIdx + 1)
-			<< ", qryKey = " << _idx.getIndexSchema()->toJsonStr(cur->m_qryKey)
-			<< ", curKey = " << _idx.getIndexSchema()->toJsonStr(cur->m_curKey)
+			<< ", qryKey = " << _idx.getIndexSchema()->toJsonStr(m_qryKey)
+			<< ", curKey = " << _idx.getIndexSchema()->toJsonStr(m_curKey)
 			<< ", inclusive = " << inclusive
 			<< ", isEqual = " << isEqual
 			;
@@ -496,7 +516,10 @@ protected:
 
     OperationContext*  _txn;
     const TerarkDbIndex& _idx;  // not owned
-    IndexIterDataPtr  _cursor;
+    terark::db::IndexIteratorPtr  _cursor;
+	terark::valvec<unsigned char> m_curKey;
+	terark::valvec<         char> m_qryKey;
+//	mongo::terarkdb::SchemaRecordCoder m_coder;
 
     // These are where this cursor instance is. They are not changed in the face of a failing
     // next().
@@ -515,6 +538,7 @@ protected:
 
 	bool _endPositionInclude;
 	bool m_isEndKeyMax = true;
+    terark::valvec<unsigned char> _endPositionKey;
 };
 
 }  // namespace
@@ -538,6 +562,7 @@ public:
 
     Status addKey(const BSONObj& newKey, const RecordId& id) override {
         {
+	    log() << "mongo_terarkdb@panda BulkBuilder addKey";
             const Status s = checkKeySize(newKey);
             if (!s.isOK())
                 return s;
@@ -551,6 +576,7 @@ public:
     }
 
     void commit(bool mayInterrupt) override {
+	log() << "mongo_terarkdb@panda BulkBuilder commit";
         // TODO do we still need this?
         // this is bizarre, but required as part of the contract
         WriteUnitOfWork uow(_txn);

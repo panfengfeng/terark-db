@@ -82,12 +82,6 @@ namespace mongo { namespace terarkdb {
 using std::set;
 using std::string;
 
-struct FuckFuck___ {
-	~FuckFuck___() {
-		fprintf(stderr, "Exiting process: %s\n", BOOST_CURRENT_FUNCTION);
-	}
-} fuckfuckfuck____;
-
 TableThreadData::TableThreadData(CompositeTable* tab) {
 	m_dbCtx.reset(tab->createDbContext());
 	m_dbCtx->syncIndex = false;
@@ -95,84 +89,6 @@ TableThreadData::TableThreadData(CompositeTable* tab) {
 
 ThreadSafeTable::ThreadSafeTable(const fs::path& dbPath) {
 	m_tab = CompositeTable::open(dbPath);
-	m_indexForwardIterCache.resize(m_tab->getIndexNum());
-	m_indexBackwardIterCache.resize(m_tab->getIndexNum());
-}
-
-ThreadSafeTable::~ThreadSafeTable() {
-	log() << BOOST_CURRENT_FUNCTION << ": tabDir: " << m_tab->getDir().string() << m_tab->get_refcount();
-}
-
-
-TableThreadDataPtr ThreadSafeTable::allocTableThreadData() {
-	TableThreadDataPtr ret;
-	std::unique_lock<std::mutex> lock(this->m_cursorCacheMutex);
-	if (m_cursorCache.empty()) {
-		lock.unlock();
-		ret = new TableThreadData(this->m_tab.get());
-	}
-	else {
-		ret = m_cursorCache.pop_val();
-	}
-	return ret;
-}
-
-void ThreadSafeTable::releaseTableThreadData(TableThreadDataPtr ttd) {
-	std::unique_lock<std::mutex> lock(this->m_cursorCacheMutex);
-	m_cursorCache.push_back(std::move(ttd));
-}
-
-IndexIterDataPtr ThreadSafeTable::allocIndexIter(size_t indexId, bool forward) {
-	auto tab = m_tab.get();
-	IndexIterDataPtr iter;
-	assert(indexId < tab->getIndexNum());
-	assert(m_indexForwardIterCache.size() == tab->getIndexNum());
-	assert(m_indexBackwardIterCache.size() == tab->getIndexNum());
-	{
-		std::unique_lock<std::mutex> lock(m_cursorCacheMutex);
-		if (forward) {
-			if (m_indexForwardIterCache[indexId].empty()) {
-				lock.unlock();
-				iter = new IndexIterData();
-				iter->m_cursor = tab->createIndexIterForward(indexId);
-			} else {
-				iter = m_indexForwardIterCache[indexId].pop_val();
-			}
-		}
-		else {
-			if (m_indexBackwardIterCache[indexId].empty()) {
-				lock.unlock();
-				iter = new IndexIterData();
-				iter->m_cursor = tab->createIndexIterBackward(indexId);
-			} else {
-				iter = m_indexBackwardIterCache[indexId].pop_val();
-			}
-		}
-	}
-	return iter;
-}
-
-void ThreadSafeTable::releaseIndexIter(size_t indexId, bool forward, IndexIterDataPtr iter) {
-	assert(indexId < m_indexForwardIterCache.size());
-	assert(m_indexForwardIterCache.size() == m_indexBackwardIterCache.size());
-	std::unique_lock<std::mutex> lock(m_cursorCacheMutex);
-	if (forward) {
-		m_indexForwardIterCache[indexId].push_back(std::move(iter));
-	} else {
-		m_indexBackwardIterCache[indexId].push_back(std::move(iter));
-	}
-}
-
-// brain dead mongodb may not delete RecordStore and SortedDataInterface
-// so, workaround mongodb, call destroy in cleanShutdown()
-void ThreadSafeTable::destroy() {
-	log() << BOOST_CURRENT_FUNCTION
-		<< ": mongodb will leak RecordStore and SortedDataInterface, destory underlying objects now";
-	m_indexForwardIterCache.clear();
-	m_indexBackwardIterCache.clear();
-	m_cursorCache.clear();
-	m_ttd.clear();
-	m_tab = nullptr;
 }
 
 TableThreadData& ThreadSafeTable::getMyThreadData() {
@@ -259,26 +175,11 @@ TerarkDbKVEngine::~TerarkDbKVEngine() {
 }
 
 void TerarkDbKVEngine::cleanShutdown() {
-    log() << "TerarkDbKVEngine shutting down ...";
+    log() << "TerarkDbKVEngine shutting down";
 //  syncSizeInfo(true);
 	std::lock_guard<std::mutex> lock(m_mutex);
-	m_indices.clear();
-	for (size_t i = 0; i < m_tables.end_i(); ++i) {
-		if (m_tables.is_deleted(i))
-			continue;
-		const fstring    key = m_tables.key(i);
-		ThreadSafeTable* tab = m_tables.val(i).get();
-		log() << "table: " << key.str() << ", dir: " << tab->m_tab->getDir().string()
-			<< ", ThreadSafeTable.refcnt = " << tab->get_refcount()
-			<< ", CompositeTable.refcnt = " << tab->m_tab->get_refcount();
-
-		// brain damaged mongodb leaks objects, so destroy it manually
-		tab->destroy();
-	}
     m_tables.clear();
 	CompositeTable::safeStopAndWaitForFlush();
-    log() << "TerarkDbKVEngine shutting down successed!";
-//	std::this_thread::sleep_for(std::chrono::milliseconds(200));
 }
 
 void TerarkDbKVEngine::setJournalListener(JournalListener* jl) {
@@ -453,15 +354,11 @@ TerarkDbKVEngine::getRecordStore(OperationContext* opCtx,
 		return NULL;
 	}
 	std::lock_guard<std::mutex> lock(m_mutex);
-	size_t fidx = m_tables.find_i(ident);
-	ThreadSafeTable* tab = NULL;
-	if (fidx < m_tables.end_i()) {
-		tab = m_tables.val(fidx).get();
-	} else {
+	ThreadSafeTablePtr& tab = m_tables[ident];
+	if (tab == nullptr) {
 		tab = new ThreadSafeTable(tabDir);
-		m_tables.insert_i(ident, tab);
 	}
-    return new TerarkDbRecordStore(opCtx, ns, ident, tab, NULL);
+    return new TerarkDbRecordStore(opCtx, ns, ident, &*tab, NULL);
 }
 
 Status
@@ -535,19 +432,14 @@ TerarkDbKVEngine::getSortedDataInterface(OperationContext* opCtx,
 	}
 	auto tabDir = m_pathTerarkTables / nsToTableDir(tableNS);
 	std::lock_guard<std::mutex> lock(m_mutex);
-
-	ThreadSafeTable* tab = NULL;
-	size_t fidx = m_tables.find_i(tableIdent);
-	if (fidx < m_tables.end_i()) {
-		tab = m_tables.val(fidx).get();
-	} else {
+	auto& tab = m_tables[tableIdent];
+	if (tab == nullptr) {
 		tab = new ThreadSafeTable(tabDir);
-		m_tables.insert_i(tableIdent, tab);
 	}
     if (desc->unique())
-        return new TerarkDbIndexUnique(tab, opCtx, desc);
+        return new TerarkDbIndexUnique(&*tab, opCtx, desc);
     else
-    	return new TerarkDbIndexStandard(tab, opCtx, desc);
+    	return new TerarkDbIndexStandard(&*tab, opCtx, desc);
 }
 
 Status TerarkDbKVEngine::dropIdent(OperationContext* opCtx, StringData ident) {
