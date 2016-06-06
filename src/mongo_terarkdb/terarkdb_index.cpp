@@ -594,7 +594,9 @@ TerarkDbIndexUnique::TerarkDbIndexUnique(ThreadSafeTable* tab,
 									 OperationContext* opCtx,
                                      const IndexDescriptor* desc)
     : TerarkDbIndex(tab, opCtx, desc)
-{}
+{
+	log() << "mongo_terarkdb@panda TerarkDbIndexUnique";
+}
 
 std::unique_ptr<SortedDataInterface::Cursor>
 TerarkDbIndexUnique::newCursor(OperationContext* txn, bool forward) const {
@@ -615,7 +617,10 @@ bool TerarkDbIndexUnique::unique() const {
 TerarkDbIndexStandard::TerarkDbIndexStandard(ThreadSafeTable* tab,
                                          OperationContext* opCtx,
                                          const IndexDescriptor* desc)
-    : TerarkDbIndex(tab, opCtx, desc) {}
+    : TerarkDbIndex(tab, opCtx, desc) {
+	
+	log() << "mongo_terarkdb@panda TerarkDbIndexStandard";
+}
 
 std::unique_ptr<SortedDataInterface::Cursor>
 TerarkDbIndexStandard::newCursor(OperationContext* txn, bool forward) const {
