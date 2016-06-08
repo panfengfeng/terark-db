@@ -141,11 +141,7 @@ public:
     boost::optional<Record> seekExact(const RecordId& id) final {
 	struct timespec start, end;
 	clock_gettime(CLOCK_MONOTONIC, &start);
-<<<<<<< HEAD
 	DbTable& tab = *_rs.m_table->m_tab;
-=======
-        _skipNextAdvance = false;
->>>>>>> add descriptions
         llong recIdx = id.repr() - 1;
 		auto& ttd = *m_ttd;
 		ttd.m_dbCtx->getValue(recIdx, &ttd.m_buf);
