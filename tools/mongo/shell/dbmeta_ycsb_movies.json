@@ -14,6 +14,18 @@
 			"$$"	 : {"type" :   "CarBin" }
 		}
 	},
+ 	"ColumnGroups": {
+                "str34": {
+                        "fields": [ "product/productId","review/userId","review/profileName","review/helpfulness","review/score","review/time","review/summary","review/text" ],
+                        "inplaceUpdatable": false,
+                        "nltDelims": " \\t,.:?<",
+                        "minFragLen": 8, "maxFragLen": 100,
+                        "dictZipSampleRatio": 0.07,
+                        "dictZipLocalMatch": true,
+                        "mmapPopulate" : true,
+                        "useFastZip": true
+                }
+        },	
 	"TableIndex" : [
 		{ "fields": "_id", "ordered" : true, "unique": true}
 	]
