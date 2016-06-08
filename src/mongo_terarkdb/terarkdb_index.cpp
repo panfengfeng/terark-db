@@ -373,6 +373,8 @@ public:
 
     boost::optional<IndexKeyEntry>
 	seekExact(const BSONObj& bsonKey, RequestedInfo parts) override {
+	struct timespec start, end;
+	clock_gettime(CLOCK_MONOTONIC, &start);
         TRACE_CURSOR << "seekExact(): key=" << bsonKey.jsonString();
 		auto& ttd = _idx.m_table->getMyThreadData();
 		auto& ctx = *ttd.m_dbCtx;
@@ -381,8 +383,14 @@ public:
 		ctx.indexSearchExact(_idx.m_indexId, ttd.m_buf, &ctx.exactMatchRecIdvec);
 		if (!ctx.exactMatchRecIdvec.empty()) {
 			llong recIdx = ctx.exactMatchRecIdvec[0];
+			clock_gettime(CLOCK_MONOTONIC, &end);
+			long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+			log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) " << timeuse; 
 			return {{bsonKey, RecordId(recIdx+1)}};
 		}
+		clock_gettime(CLOCK_MONOTONIC, &end);
+		long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+		log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) " << timeuse; 
 		return {};
 	}
 

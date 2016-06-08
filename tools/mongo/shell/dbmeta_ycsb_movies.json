@@ -3,20 +3,20 @@
         "RowSchema": {
                 "columns" : {
                         "_id" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "product/productId" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/userId" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/profileName" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/helpfulness" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/score" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/time" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/summary" 	 : {"type" :   "strzero", "mongoType": "string" },
-                        "review/text" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "productproductId" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewuserId" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewprofileName" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewhelpfulness" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewscore" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewtime" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewsummary" 	 : {"type" :   "strzero", "mongoType": "string" },
+                        "reviewtext" 	 : {"type" :   "strzero", "mongoType": "string" },
 			"$$"	 : {"type" :   "CarBin" }
 		}
 	},
  	"ColumnGroups": {
                 "str34": {
-                        "fields": [ "product/productId","review/userId","review/profileName","review/helpfulness","review/score","review/time","review/summary","review/text" ],
+                        "fields": [ "productproductId","reviewuserId","reviewprofileName","reviewhelpfulness","reviewscore","reviewtime","reviewsummary","reviewtext" ],
                         "inplaceUpdatable": false,
                         "nltDelims": " \\t,.:?<",
                         "minFragLen": 8, "maxFragLen": 100,
