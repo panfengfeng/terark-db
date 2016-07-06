@@ -1,0 +1,14 @@
+{
+	"CheckMongoType" : true,
+        "RowSchema": {
+                "columns" : {
+                        "_id" 	 : {"type" :   "fixed", "length": 12 },
+                        "field1" : {"type" :   "strzero", "mongoType": "string" },
+                        "field0" : {"type" :   "strzero", "mongoType": "string" },
+			"$$"	 : {"type" :   "CarBin" }
+		}
+	},
+	"TableIndex" : [
+		{ "fields": "_id", "ordered" : true, "unique": true}
+	]
+}	 

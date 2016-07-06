@@ -131,7 +131,7 @@ TerarkDbIndex::TerarkDbIndex(ThreadSafeTable* table, OperationContext* ctx, cons
     , _indexName(desc->indexName())
 {
 	// log() << "mongo_terarkdb@panda index TerarkDbIndex";
-	printf("mongo_terarkdb@panda index TerarkDbIndex\n");
+	// printf("mongo_terarkdb@panda index TerarkDbIndex\n");
 	LOG(2) << "TerarkDbIndex::TerarkDbIndex(): keyPattern=" << desc->keyPattern().toString();
 	std::string indexColumnNames;
 	BSONForEach(elem, desc->keyPattern()) {
@@ -163,19 +163,19 @@ Status TerarkDbIndex::insert(OperationContext* txn,
                            const RecordId& id,
                            bool dupsAllowed)
 {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 	auto& td = m_table->getMyThreadData();
 	auto indexSchema = getIndexSchema();
 	encodeIndexKey(*indexSchema, key, &td.m_buf);
 	llong recIdx = id.repr() - 1;
 	DbTable* tab = m_table->m_tab.get();
 	bool result = tab->indexInsert(m_indexId, td.m_buf, recIdx, &*td.m_dbCtx);
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 
 	// log() << "mongo_terarkdb@panda index insert timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda index insert timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda index insert timeuse(ns) %lld\n",timeuse);
 
 	if (result) {
 		return Status::OK();
@@ -190,7 +190,7 @@ void TerarkDbIndex::unindex(OperationContext* txn,
                           bool dupsAllowed)
 {
     // log() << "mongo_terarkdb@panda index unindex";
-    printf("mongo_terarkdb@panda index unindex\n");
+    // printf("mongo_terarkdb@panda index unindex\n");
     invariant(id.isNormal());
     dassert(!hasFieldNames(key));
 	auto& td = m_table->getMyThreadData();
@@ -206,7 +206,7 @@ void TerarkDbIndex::fullValidate(OperationContext* txn,
 							   long long* numKeysOut,
 							   ValidateResults* output) const {
 	// log() << "mongo_terarkdb@panda index fullValidate";
-	printf("mongo_terarkdb@panda index fullValidate\n");
+	// printf("mongo_terarkdb@panda index fullValidate\n");
 	LOG(2) << BOOST_CURRENT_FUNCTION << ": is in TODO list, Not supported now";
 }
 
@@ -221,7 +221,7 @@ bool TerarkDbIndex::appendCustomStats(OperationContext* txn,
 
 Status TerarkDbIndex::dupKeyCheck(OperationContext* txn, const BSONObj& key, const RecordId& id) {
 	// log() << "mongo_terarkdb@panda index dupKeyCheck";
-	printf("mongo_terarkdb@panda index dupKeyCheck\n");
+	// printf("mongo_terarkdb@panda index dupKeyCheck\n");
     invariant(!hasFieldNames(key));
     invariant(unique());
 	auto& td = m_table->getMyThreadData();
@@ -263,7 +263,7 @@ bool
 TerarkDbIndex::insertIndexKey(const BSONObj& newKey, const RecordId& id,
 							TableThreadData* td) {
 	// log() << "mongo_terarkdb@panda index insertIndexKey";
-	printf("mongo_terarkdb@panda index insertIndexKey\n");
+	// printf("mongo_terarkdb@panda index insertIndexKey\n");
 	encodeIndexKey(*getIndexSchema(), newKey, &td->m_buf);
 	DbTable* tab = m_table->m_tab.get();
 	return tab->indexInsert(m_indexId, td->m_buf, id.repr()-1, &*td->m_dbCtx);
@@ -278,20 +278,20 @@ class TerarkDbIndexCursorBase : public SortedDataInterface::Cursor {
 public:
     TerarkDbIndexCursorBase(const TerarkDbIndex& idx, OperationContext* txn, bool forward)
         : _txn(txn), _idx(idx), _forward(forward), _endPositionInclude(false) {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 		_cursor = idx.m_table->allocIndexIter(idx.m_indexId, forward);
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 	// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda TerarkDbIndexCursorBase timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase timeuse(ns) %lld\n",timeuse);
     }
 	~TerarkDbIndexCursorBase() {
 		_idx.m_table->releaseIndexIter(_idx.m_indexId, _forward, _cursor);
 	}
     boost::optional<IndexKeyEntry> next(RequestedInfo parts) override {
 	// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase next";
-	printf("mongo_terarkdb@panda TerarkDbIndexCursorBase next\n");
+	// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase next\n");
         if (_eof) { // Advance on a cursor at the end is a no-op
 	        TRACE_CURSOR << "next(): _eof=true";
             return {};
@@ -343,8 +343,8 @@ public:
     boost::optional<IndexKeyEntry> seek(const BSONObj& key,
                                         bool inclusive,
                                         RequestedInfo parts) override {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 //        const BSONObj finalKey = stripFieldNames(key);
 //        const auto discriminator =
 //           _forward == inclusive ? KeyString::kExclusiveBefore : KeyString::kExclusiveAfter;
@@ -355,10 +355,10 @@ public:
         TRACE_CURSOR << "seek3(): key=" << key.jsonString() << ", inclusive=" << inclusive;
         seekWTCursor(key, inclusive);
         updatePosition();
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 	// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seek key timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seek key timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seek key timeuse(ns) %lld\n",timeuse);
 		if (!_cursorAtEof)
 			return curr(parts);
 		else
@@ -368,7 +368,7 @@ public:
     boost::optional<IndexKeyEntry> seek(const IndexSeekPoint& seekPoint,
                                         RequestedInfo parts) override {
 	// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seek seekPoint";
-	printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seek seekPoint\n");
+	// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seek seekPoint\n");
         // TODO: don't go to a bson obj then to a KeyString, go straight
         // makeQueryObject handles the discriminator in the real exclusive cases.
         BSONObj key = IndexEntryComparison::makeQueryObject(seekPoint, _forward);
@@ -383,8 +383,8 @@ public:
 
     boost::optional<IndexKeyEntry>
 	seekExact(const BSONObj& bsonKey, RequestedInfo parts) override {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
         TRACE_CURSOR << "seekExact(): key=" << bsonKey.jsonString();
 		auto& ttd = _idx.m_table->getMyThreadData();
 		auto& ctx = *ttd.m_dbCtx;
@@ -393,16 +393,16 @@ public:
 		ctx.indexSearchExact(_idx.m_indexId, ttd.m_buf, &ctx.exactMatchRecIdvec);
 		if (!ctx.exactMatchRecIdvec.empty()) {
 			llong recIdx = ctx.exactMatchRecIdvec[0];
-			clock_gettime(CLOCK_MONOTONIC, &end);
-			long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+			// clock_gettime(CLOCK_MONOTONIC, &end);
+			// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 			// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) " << timeuse; 
-			printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) %lld\n",timeuse); 
+			// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) %lld\n",timeuse); 
 			return {{bsonKey, RecordId(recIdx+1)}};
 		}
-		clock_gettime(CLOCK_MONOTONIC, &end);
-		long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+		// clock_gettime(CLOCK_MONOTONIC, &end);
+		// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 		// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) " << timeuse; 
-		printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) %lld\n",timeuse); 
+		// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase seekexact timeuse(ns) %lld\n",timeuse); 
 		return {};
 	}
 
@@ -453,8 +453,8 @@ public:
 
 protected:
     boost::optional<IndexKeyEntry> curr(RequestedInfo parts) {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
         if (_eof)
             return {};
         if (atOrPastEndPointAfterSeeking())
@@ -465,10 +465,10 @@ protected:
             bson = BSONObj(decodeIndexKey(*_idx.getIndexSchema(), _cursor->m_curKey));
             TRACE_CURSOR << "curr() returning " << bson << ' ' << _id;
         }
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 	// log() << "mongo_terarkdb@panda TerarkDbIndexCursorBase curr timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda TerarkDbIndexCursorBase curr timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda TerarkDbIndexCursorBase curr timeuse(ns) %lld\n",timeuse);
         return {{std::move(bson), _id}};
     }
 
@@ -605,7 +605,7 @@ public:
     Status addKey(const BSONObj& newKey, const RecordId& id) override {
         {
 		// log() << "mongo_terarkdb@panda BulkBuilder addKey";
-		printf("mongo_terarkdb@panda BulkBuilder addKey\n");
+		// printf("mongo_terarkdb@panda BulkBuilder addKey\n");
             const Status s = checkKeySize(newKey);
             if (!s.isOK())
                 return s;
@@ -620,7 +620,7 @@ public:
 
     void commit(bool mayInterrupt) override {
 	// log() << "mongo_terarkdb@panda BulkBuilder commit";
-	printf("mongo_terarkdb@panda BulkBuilder commit\n");
+	// printf("mongo_terarkdb@panda BulkBuilder commit\n");
         // TODO do we still need this?
         // this is bizarre, but required as part of the contract
         WriteUnitOfWork uow(_txn);
@@ -640,7 +640,7 @@ TerarkDbIndexUnique::TerarkDbIndexUnique(ThreadSafeTable* tab,
     : TerarkDbIndex(tab, opCtx, desc)
 {
 	// log() << "mongo_terarkdb@panda TerarkDbIndexUnique";
-	printf("mongo_terarkdb@panda TerarkDbIndexUnique\n");
+	// printf("mongo_terarkdb@panda TerarkDbIndexUnique\n");
 }
 
 std::unique_ptr<SortedDataInterface::Cursor>
@@ -665,7 +665,7 @@ TerarkDbIndexStandard::TerarkDbIndexStandard(ThreadSafeTable* tab,
     : TerarkDbIndex(tab, opCtx, desc) {
 
 	// log() << "mongo_terarkdb@panda TerarkDbIndexStandard";
-	printf("mongo_terarkdb@panda TerarkDbIndexStandard\n");
+	// printf("mongo_terarkdb@panda TerarkDbIndexStandard\n");
 }
 
 std::unique_ptr<SortedDataInterface::Cursor>

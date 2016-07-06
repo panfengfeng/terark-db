@@ -93,8 +93,8 @@ public:
     Cursor(OperationContext* txn, const TerarkDbRecordStore& rs, bool forward)
         : _rs(rs),
           _txn(txn) {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 		ThreadSafeTable* tst = rs.m_table.get();
 		DbTable* tab = tst->m_tab.get();
     	m_ttd = tst->allocTableThreadData();
@@ -102,10 +102,10 @@ public:
     		_cursor = tab->createStoreIterForward(m_ttd->m_dbCtx.get());
     	else
     		_cursor = tab->createStoreIterBackward(m_ttd->m_dbCtx.get());
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 	// log() << "mongo_terarkdb@panda Cursor timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda Cursor timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda Cursor timeuse(ns) %lld\n",timeuse);
     }
 
 	~Cursor() {
@@ -115,7 +115,7 @@ public:
 
     boost::optional<Record> next() final {
 	// log() << "mongo_terarkdb@panda Cursor next";
-	printf("mongo_terarkdb@panda Cursor next\n");
+	// printf("mongo_terarkdb@panda Cursor next\n");
         if (_eof)
             return {};
 
@@ -141,8 +141,8 @@ public:
     }
 
     boost::optional<Record> seekExact(const RecordId& id) final {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 	DbTable& tab = *_rs.m_table->m_tab;
         llong recIdx = id.repr() - 1;
 		auto& ttd = *m_ttd;
@@ -150,16 +150,16 @@ public:
 		assert(!ttd.m_buf.empty());
         SharedBuffer sbuf = ttd.m_coder.decode(&tab.rowSchema(), ttd.m_buf);
 		int len = ConstDataView(sbuf.get()).read<LittleEndian<int>>();
-	clock_gettime(CLOCK_MONOTONIC, &end);
-	long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+	// clock_gettime(CLOCK_MONOTONIC, &end);
+	// long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
 	// log() << "mongo_terarkdb@panda Cursor seekExact timeuse(ns) " << timeuse;
-	printf("mongo_terarkdb@panda Cursor seekExact timeuse(ns) %lld\n",timeuse);
+	// printf("mongo_terarkdb@panda Cursor seekExact timeuse(ns) %lld\n",timeuse);
         return {{id, {sbuf, len}}};
     }
 
     void save() final {
 	// log() << "mongo_terarkdb@panda Cursor save";
-	printf("mongo_terarkdb@panda Cursor save\n");
+	// printf("mongo_terarkdb@panda Cursor save\n");
         try {
         	_cursor->reset();
         } catch (const WriteConflictException&) {
@@ -215,7 +215,7 @@ private:
 
 StatusWith<std::string> parseOptionsField(const BSONObj options) {
     // log() <<"mongo_terarkdb@panda parseOptionsField";
-    printf("mongo_terarkdb@panda parseOptionsField\n");
+    // printf("mongo_terarkdb@panda parseOptionsField\n");
     StringBuilder ss;
     BSONForEach(elem, options) {
 	
@@ -241,7 +241,7 @@ StatusWith<std::string> TerarkDbRecordStore::generateCreateString(
 								const CollectionOptions& options,
 								StringData extraStrings) {
    // log() << "mongo_terarkdb@panda generateCreateString";
-   printf("mongo_terarkdb@panda generateCreateString\n");
+   // printf("mongo_terarkdb@panda generateCreateString\n");
      // Separate out a prefix and suffix in the default string. User configuration will
     // override values in the prefix, but not values in the suffix.
     str::stream ss;
@@ -353,7 +353,7 @@ bool TerarkDbRecordStore::findRecord(OperationContext* txn,
 								   const RecordId& id,
 								   RecordData* out) const {
 	// log() << "mongo_terarkdb@panda findRecord";
-	printf("mongo_terarkdb@panda findRecord\n");
+	// printf("mongo_terarkdb@panda findRecord\n");
 	if (id.isNull())
 		return false;
     llong recIdx = id.repr() - 1;
@@ -370,7 +370,7 @@ bool TerarkDbRecordStore::findRecord(OperationContext* txn,
 
 void TerarkDbRecordStore::deleteRecord(OperationContext* txn, const RecordId& id) {
     // log() << "mongo_terarkdb@panda deleteRecord";
-    printf("mongo_terarkdb@panda deleteRecord\n");
+    // printf("mongo_terarkdb@panda deleteRecord\n");
     auto& td = m_table->getMyThreadData();
     m_table->m_tab->removeRow(id.repr()-1, &*td.m_dbCtx);
 }
@@ -378,8 +378,8 @@ void TerarkDbRecordStore::deleteRecord(OperationContext* txn, const RecordId& id
 Status TerarkDbRecordStore::insertRecords(OperationContext* txn,
 										std::vector<Record>* records,
 										bool enforceQuota) {
-	struct timespec start, end;
-	clock_gettime(CLOCK_MONOTONIC, &start);
+	// struct timespec start, end;
+	// clock_gettime(CLOCK_MONOTONIC, &start);
 	DbTable* tab = m_table->m_tab.get();
     auto& td = m_table->getMyThreadData();
     for (Record& rec : *records) {
@@ -387,10 +387,10 @@ Status TerarkDbRecordStore::insertRecords(OperationContext* txn,
     	td.m_coder.encode(&tab->rowSchema(), nullptr, bson, &td.m_buf);
     	rec.id = RecordId(1 + tab->insertRow(td.m_buf, &*td.m_dbCtx));
     }
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
+    // clock_gettime(CLOCK_MONOTONIC, &end);
+    // long long timeuse = 1000000000LL * ( end.tv_sec - start.tv_sec ) + end.tv_nsec - start.tv_nsec;
     // log() << "mongo_terarkdb@panda insertRecords records timeuse(ns) " << timeuse;
-    printf("mongo_terarkdb@panda insertRecords records timeuse(ns) %lld\n",timeuse);
+    // printf("mongo_terarkdb@panda insertRecords records timeuse(ns) %lld\n",timeuse);
     return Status::OK();
 }
 
@@ -399,7 +399,7 @@ StatusWith<RecordId> TerarkDbRecordStore::insertRecord(OperationContext* txn,
 													 int len,
 													 bool enforceQuota) {
    // log() << "mongo_terarkdb@panda insertRecord data";
-   printf("mongo_terarkdb@panda insertRecord data\n");
+   // printf("mongo_terarkdb@panda insertRecord data\n");
 	DbTable* tab = m_table->m_tab.get();
     auto& td = m_table->getMyThreadData();
     BSONObj bson(data);
@@ -413,7 +413,7 @@ StatusWith<RecordId> TerarkDbRecordStore::insertRecord(OperationContext* txn,
 													 const DocWriter* doc,
 													 bool enforceQuota) {
     // log() << "mongo_terarkdb@panda insertRecord doc";
-    printf("mongo_terarkdb@panda insertRecord doc\n");
+    // printf("mongo_terarkdb@panda insertRecord doc\n");
     const int len = doc->documentSize();
 
     std::unique_ptr<char[]> buf(new char[len]);
@@ -430,7 +430,7 @@ TerarkDbRecordStore::updateRecord(OperationContext* txn,
 								bool enforceQuota,
 								UpdateNotifier* notifier) {
         // log() << "mongo_terarkdb@panda updateRecord data";
-        printf("mongo_terarkdb@panda updateRecord data\n");
+        // printf("mongo_terarkdb@panda updateRecord data\n");
 	DbTable* tab = m_table->m_tab.get();
 	terark::db::IncrementGuard_size_t incrGuard(tab->m_inprogressWritingCount);
 	llong recId = id.repr() - 1;
@@ -479,7 +479,7 @@ std::unique_ptr<RecordCursor> TerarkDbRecordStore::getRandomCursor(OperationCont
 std::vector<std::unique_ptr<RecordCursor>>
 TerarkDbRecordStore::getManyCursors(OperationContext* txn) const {
     // log() << "mongo_terarkdb@panda getManyCursors";
-    printf("mongo_terarkdb@panda getManyCursors\n");
+    // printf("mongo_terarkdb@panda getManyCursors\n");
     std::vector<std::unique_ptr<RecordCursor>> cursors(1);
     cursors[0] = stdx::make_unique<Cursor>(txn, *this, /*forward=*/true);
     return cursors;
